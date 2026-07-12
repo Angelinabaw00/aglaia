@@ -1,0 +1,11 @@
+{
+  "name": "Aglaia — Dressing intelligent",
+  "short_name": "Aglaia",
+  "description": "Ton dressing intelligent et ton styliste personnel.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#FAFAF7",
+  "theme_color": "#7FA38A",
+  "lang": "fr",
+  "icons": []
+}
