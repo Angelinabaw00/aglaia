@@ -3,7 +3,7 @@ const categories = ['Tous', 'Hauts', 'Bas', 'Robes', 'Vestes', 'Chaussures', 'Sa
 const seasons = ['Toute l’année', 'Printemps', 'Été', 'Automne', 'Hiver'];
 const state = {
   page: 'home', previous: 'home', selectedId: null, editId: null,
-  filter: 'Tous', search: '',
+  filter: 'Tous', search: '', notice: '',
   clothes: read(STORAGE.clothes, []), outfits: read(STORAGE.outfits, []),
   profile: read(STORAGE.profile, { firstName: 'Angélina', style: '', trend: 'Équilibré', colors: '' })
 };
@@ -36,6 +36,7 @@ function home() {
 function dressing() {
   const visible = state.clothes.filter(c => (state.filter === 'Tous' || c.category === state.filter) && c.name.toLowerCase().includes(state.search.toLowerCase()));
   return `<main class="page">${brand()}<h1>Mon dressing</h1><p class="subtitle">Tout ce que tu possèdes, bien organisé.</p>
+    ${state.notice ? `<div id="success-notice" class="card success-banner" role="status">✓ ${esc(state.notice)}</div>` : ''}
     <div class="search"><input id="search" value="${esc(state.search)}" placeholder="Rechercher un vêtement" aria-label="Rechercher"></div>
     <div class="filters">${categories.map(c => `<button class="chip ${state.filter === c ? 'active' : ''}" data-filter="${c}">${c}</button>`).join('')}</div>
     ${visible.length ? `<div class="clothes-grid">${visible.map(clothingCard).join('')}</div>` : `<div class="empty"><div class="empty-art">👗</div><h2>${state.clothes.length ? 'Aucun résultat' : 'Ton dressing est encore vide.'}</h2><p>${state.clothes.length ? 'Essaie une autre recherche ou un autre filtre.' : 'Ajoute une première pièce pour commencer à organiser ce que tu possèdes.'}</p><button class="button" data-go="add">Ajouter un vêtement</button></div>`}
@@ -88,18 +89,77 @@ function bind() {
   const search=document.getElementById('search'); if(search) search.oninput=e=>{ state.search=e.target.value; render(); document.getElementById('search')?.focus(); };
   document.querySelectorAll('[data-detail]').forEach(el => el.onclick=()=>go('detail',{selectedId:el.dataset.detail}));
   document.querySelectorAll('[data-edit]').forEach(el => el.onclick=()=>go('add',{editId:el.dataset.edit}));
-  document.querySelectorAll('[data-delete]').forEach(el => el.onclick=()=>{ if(confirm('Supprimer ce vêtement ?')) { state.clothes=state.clothes.filter(c=>c.id!==el.dataset.delete); state.outfits=state.outfits.map(o=>({...o,clothingIds:o.clothingIds.filter(id=>id!==el.dataset.delete)})); save(STORAGE.clothes,state.clothes); save(STORAGE.outfits,state.outfits); go('dressing'); toast('Vêtement supprimé.'); }});
+  document.querySelectorAll('[data-delete]').forEach(el => el.onclick=()=>{
+    if (!confirm('Supprimer ce vêtement ?')) return;
+    const nextClothes=state.clothes.filter(c=>c.id!==el.dataset.delete);
+    const nextOutfits=state.outfits.map(o=>({...o,clothingIds:o.clothingIds.filter(id=>id!==el.dataset.delete)}));
+    try {
+      save(STORAGE.clothes,nextClothes);
+      save(STORAGE.outfits,nextOutfits);
+      state.clothes=nextClothes;
+      state.outfits=nextOutfits;
+      state.notice='Vêtement supprimé avec succès.';
+      go('dressing');
+      setTimeout(() => { state.notice=''; document.getElementById('success-notice')?.remove(); }, 5000);
+    } catch {
+      toast('La suppression n’a pas pu être enregistrée. Réessaie.');
+    }
+  });
   document.querySelectorAll('[data-create-outfit]').forEach(el => el.onclick=()=>outfitForm());
   document.querySelectorAll('[data-add-outfit]').forEach(el => el.onclick=()=>outfitForm(el.dataset.addOutfit));
   document.querySelectorAll('[data-delete-outfit]').forEach(el => el.onclick=()=>{ state.outfits=state.outfits.filter(o=>o.id!==el.dataset.deleteOutfit); save(STORAGE.outfits,state.outfits); render(); });
-  const image=document.getElementById('image'); if(image) image.onchange=e=>{ const file=e.target.files[0]; if(!file)return; const reader=new FileReader(); reader.onload=()=>{const preview=document.getElementById('photo-preview'); preview.src=reader.result; preview.hidden=false; preview.dataset.value=reader.result;}; reader.readAsDataURL(file); };
+  const image=document.getElementById('image'); if(image) image.onchange=async e=>{ const file=e.target.files[0]; if(!file)return; const preview=document.getElementById('photo-preview'); try { toast('Préparation de la photo…'); const compressed=await compressImage(file); preview.src=compressed; preview.hidden=false; preview.dataset.value=compressed; toast('Photo prête.'); } catch { toast('Impossible de préparer cette photo. Essaie-en une autre.'); } };
   document.getElementById('clothing-form')?.addEventListener('submit', saveClothing);
   document.getElementById('outfit-form')?.addEventListener('submit', saveOutfit);
   document.getElementById('profile-form')?.addEventListener('submit', saveProfile);
   document.getElementById('export-backup')?.addEventListener('click', exportBackup);
   document.getElementById('import-backup')?.addEventListener('change', importBackup);
 }
-function saveClothing(e) { e.preventDefault(); const old=state.editId ? state.clothes.find(c=>c.id===state.editId) : null; const preview=document.getElementById('photo-preview'); const item={id:old?.id||crypto.randomUUID(),name:value('name'),category:value('category'),color:value('color'),brand:value('brand'),season:value('season'),imagePath:preview?.dataset.value||old?.imagePath||'',room:value('room'),storageUnit:value('storageUnit'),storageArea:value('storageArea'),storageDetails:value('storageDetails'),notes:value('notes'),createdAt:old?.createdAt||new Date().toISOString()}; state.clothes=old?state.clothes.map(c=>c.id===old.id?item:c):[item,...state.clothes]; save(STORAGE.clothes,state.clothes); state.editId=null; go('dressing'); toast(old?'Vêtement modifié.':'Vêtement ajouté à ton dressing.'); }
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = reject;
+      image.onload = () => {
+        const maxSize = 1200;
+        const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#FAFAF7';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', .72));
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+function saveClothing(e) {
+  e.preventDefault();
+  const button = e.submitter;
+  if (button?.disabled) return;
+  if (button) { button.disabled = true; button.textContent = 'Enregistrement…'; }
+  const old=state.editId ? state.clothes.find(c=>c.id===state.editId) : null;
+  const preview=document.getElementById('photo-preview');
+  const item={id:old?.id||crypto.randomUUID(),name:value('name'),category:value('category'),color:value('color'),brand:value('brand'),season:value('season'),imagePath:preview?.dataset.value||old?.imagePath||'',room:value('room'),storageUnit:value('storageUnit'),storageArea:value('storageArea'),storageDetails:value('storageDetails'),notes:value('notes'),createdAt:old?.createdAt||new Date().toISOString()};
+  const nextClothes=old?state.clothes.map(c=>c.id===old.id?item:c):[item,...state.clothes];
+  try {
+    save(STORAGE.clothes,nextClothes);
+    state.clothes=nextClothes;
+    state.editId=null;
+    state.notice=old?'Vêtement modifié avec succès.':'Vêtement ajouté à ton dressing.';
+    go('dressing');
+    setTimeout(() => { state.notice=''; document.getElementById('success-notice')?.remove(); }, 5000);
+  } catch {
+    if (button) { button.disabled = false; button.textContent = 'Enregistrer le vêtement'; }
+    toast('Stockage plein : exporte une sauvegarde puis supprime quelques photos lourdes.');
+  }
+}
 function saveOutfit(e) { e.preventDefault(); const ids=[...document.querySelectorAll('input[name="clothes"]:checked')].map(x=>x.value); if(!ids.length){toast('Choisis au moins un vêtement.');return;} state.outfits.unshift({id:crypto.randomUUID(),name:value('outfitName'),clothingIds:ids,createdAt:new Date().toISOString()}); save(STORAGE.outfits,state.outfits); go('outfits'); toast('Tenue créée.'); }
 function saveProfile(e) { e.preventDefault(); state.profile={firstName:value('firstName'),style:value('style'),trend:document.querySelector('input[name="trend"]:checked')?.value||'Équilibré',colors:value('colors')}; save(STORAGE.profile,state.profile); render(); toast('Préférences enregistrées.'); }
 function exportBackup() {

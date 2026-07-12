@@ -53,6 +53,7 @@ h3 { font-size: 15px; font-weight: 650; margin-bottom: 8px; }
 .today { display: flex; gap: 13px; align-items: flex-start; }
 .today-icon { flex: 0 0 38px; height: 38px; display: grid; place-items: center; background: var(--blush-soft); border-radius: 13px; }
 .today p { margin: 0; line-height: 1.5; }
+.success-banner { margin-bottom: 16px; background: var(--sage-soft); color: var(--sage-dark); border-color: #c8d8cb; font-weight: 650; }
 .top-row { display: flex; align-items: center; gap: 12px; margin-bottom: 23px; }
 .back { width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 14px; background: var(--white); font-size: 20px; }
 .top-row h1 { font-size: 27px; margin: 0; }
