@@ -76,7 +76,7 @@ function outfitForm(preselect = '') {
 }
 function impactScore() { return Math.min(100, state.clothes.length * 4 + state.outfits.length * 8); }
 function impact() { return `<main class="page">${back('Mon Impact')}<section class="card impact-score"><div class="score-ring">${impactScore()}</div><h2>Score Impact</h2><p class="muted">Ce score récompense l’utilisation et l’organisation de ton dressing, jamais l’achat.</p></section><section class="section"><h2>Ce que tu valorises</h2><div class="impact-grid">${[['↺','Vêtements redécouverts'],['✦','Nouvelles combinaisons créées'],['≠','Achats doublons évités'],['◌','Vêtements différents portés']].map(([i,t]) => `<div class="card impact-item"><span class="icon">${i}</span><h3>${t}</h3><span class="muted">À découvrir progressivement</span></div>`).join('')}</div></section><section class="section card today"><span class="today-icon">♡</span><p>Le meilleur vêtement est souvent celui que tu possèdes déjà.</p></section></main>${nav()}`; }
-function profile() { const p=state.profile; return `<main class="page">${brand()}<div class="profile-avatar">${esc(p.firstName.slice(0,1).toUpperCase())}</div><h1>Mon profil</h1><p class="subtitle">Des préférences pour mieux t’accompagner.</p><form id="profile-form"><div class="field"><label for="firstName">Prénom</label><input id="firstName" required value="${esc(p.firstName)}"></div><div class="field"><label for="style">Style préféré</label><input id="style" value="${esc(p.style)}" placeholder="Ex. Minimaliste, romantique…"></div><div class="field"><label>Niveau de tendance</label><div class="radio-row">${['Intemporel','Équilibré','Très tendance'].map(x => `<label><input type="radio" name="trend" value="${x}" ${p.trend===x?'checked':''}><span>${x}</span></label>`).join('')}</div></div><div class="field"><label for="colors">Préférences de couleurs</label><input id="colors" value="${esc(p.colors)}" placeholder="Ex. Neutres, vert, rose poudré"></div><button class="button" type="submit">Enregistrer mes préférences</button></form><section class="section"><h2>Paramètres</h2><div class="card"><h3>Données locales</h3><p class="muted">Tes informations restent uniquement sur cet appareil.</p></div></section></main>${nav()}`; }
+function profile() { const p=state.profile; return `<main class="page">${brand()}<div class="profile-avatar">${esc(p.firstName.slice(0,1).toUpperCase())}</div><h1>Mon profil</h1><p class="subtitle">Des préférences pour mieux t’accompagner.</p><form id="profile-form"><div class="field"><label for="firstName">Prénom</label><input id="firstName" required value="${esc(p.firstName)}"></div><div class="field"><label for="style">Style préféré</label><input id="style" value="${esc(p.style)}" placeholder="Ex. Minimaliste, romantique…"></div><div class="field"><label>Niveau de tendance</label><div class="radio-row">${['Intemporel','Équilibré','Très tendance'].map(x => `<label><input type="radio" name="trend" value="${x}" ${p.trend===x?'checked':''}><span>${x}</span></label>`).join('')}</div></div><div class="field"><label for="colors">Préférences de couleurs</label><input id="colors" value="${esc(p.colors)}" placeholder="Ex. Neutres, vert, rose poudré"></div><button class="button" type="submit">Enregistrer mes préférences</button></form><section class="section"><h2>Sauvegarde</h2><div class="card"><h3>Protéger mes données</h3><p class="muted">Exporte régulièrement une copie dans iCloud Drive. La restauration remplace les données présentes sur cet appareil.</p><div class="button-stack"><button class="button soft" type="button" id="export-backup">Exporter ma sauvegarde</button><label class="button secondary" for="import-backup">Restaurer une sauvegarde</label><input id="import-backup" type="file" accept="application/json,.json" hidden></div></div></section><section class="section"><h2>Paramètres</h2><div class="card"><h3>Données locales</h3><p class="muted">Tes informations restent uniquement sur cet appareil.</p></div></section></main>${nav()}`; }
 
 function render() {
   const views = {home, dressing, add:addPage, detail, outfits, impact, profile};
@@ -96,10 +96,49 @@ function bind() {
   document.getElementById('clothing-form')?.addEventListener('submit', saveClothing);
   document.getElementById('outfit-form')?.addEventListener('submit', saveOutfit);
   document.getElementById('profile-form')?.addEventListener('submit', saveProfile);
+  document.getElementById('export-backup')?.addEventListener('click', exportBackup);
+  document.getElementById('import-backup')?.addEventListener('change', importBackup);
 }
 function saveClothing(e) { e.preventDefault(); const old=state.editId ? state.clothes.find(c=>c.id===state.editId) : null; const preview=document.getElementById('photo-preview'); const item={id:old?.id||crypto.randomUUID(),name:value('name'),category:value('category'),color:value('color'),brand:value('brand'),season:value('season'),imagePath:preview?.dataset.value||old?.imagePath||'',room:value('room'),storageUnit:value('storageUnit'),storageArea:value('storageArea'),storageDetails:value('storageDetails'),notes:value('notes'),createdAt:old?.createdAt||new Date().toISOString()}; state.clothes=old?state.clothes.map(c=>c.id===old.id?item:c):[item,...state.clothes]; save(STORAGE.clothes,state.clothes); state.editId=null; go('dressing'); toast(old?'Vêtement modifié.':'Vêtement ajouté à ton dressing.'); }
 function saveOutfit(e) { e.preventDefault(); const ids=[...document.querySelectorAll('input[name="clothes"]:checked')].map(x=>x.value); if(!ids.length){toast('Choisis au moins un vêtement.');return;} state.outfits.unshift({id:crypto.randomUUID(),name:value('outfitName'),clothingIds:ids,createdAt:new Date().toISOString()}); save(STORAGE.outfits,state.outfits); go('outfits'); toast('Tenue créée.'); }
 function saveProfile(e) { e.preventDefault(); state.profile={firstName:value('firstName'),style:value('style'),trend:document.querySelector('input[name="trend"]:checked')?.value||'Équilibré',colors:value('colors')}; save(STORAGE.profile,state.profile); render(); toast('Préférences enregistrées.'); }
+function exportBackup() {
+  const backup = { app: 'Aglaia', version: 1, exportedAt: new Date().toISOString(), clothes: state.clothes, outfits: state.outfits, profile: state.profile };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `aglaia-sauvegarde-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('Sauvegarde prête à enregistrer dans Fichiers.');
+}
+function importBackup(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const backup = JSON.parse(reader.result);
+      if (backup.app !== 'Aglaia' || !Array.isArray(backup.clothes) || !Array.isArray(backup.outfits) || !backup.profile) throw new Error('invalid');
+      if (!confirm('Restaurer cette sauvegarde ? Les données actuelles seront remplacées.')) return;
+      state.clothes = backup.clothes;
+      state.outfits = backup.outfits;
+      state.profile = backup.profile;
+      save(STORAGE.clothes, state.clothes);
+      save(STORAGE.outfits, state.outfits);
+      save(STORAGE.profile, state.profile);
+      render();
+      toast('Sauvegarde restaurée.');
+    } catch {
+      toast('Ce fichier n’est pas une sauvegarde Aglaia valide.');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
 function value(id) { return document.getElementById(id)?.value.trim() || ''; }
 render();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js');
