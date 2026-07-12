@@ -28,7 +28,7 @@ function home() {
       <div class="stat"><strong>${state.clothes.length}</strong><span>vêtement${state.clothes.length !== 1 ? 's' : ''}</span></div>
       <div class="stat"><strong>${state.outfits.length}</strong><span>tenue${state.outfits.length !== 1 ? 's' : ''}</span></div>
       <div class="stat"><strong>${impactScore()}</strong><span>Score Impact</span></div></div>
-      <button class="button hero-action" data-go="add">＋ Ajouter mon premier vêtement</button></section>
+      <button class="button hero-action" data-go="add">＋ ${state.clothes.length ? 'Ajouter un vêtement' : 'Ajouter mon premier vêtement'}</button></section>
     <div class="two-cards"><button class="card action-card" data-go="outfits"><span class="icon">◇</span><h3>Créer une tenue</h3></button><button class="card action-card" data-go="dressing"><span class="icon">⌕</span><h3>Retrouver un vêtement</h3></button></div>
     <section class="section"><div class="section-head"><h2>Aujourd’hui</h2><button class="chip" data-go="impact">Voir l’impact</button></div><div class="card today"><span class="today-icon">✦</span><p>${state.clothes.length ? 'Explore ton dressing et imagine une nouvelle combinaison.' : 'Commence par ajouter les vêtements que tu possèdes déjà.'}</p></div></section>
   </main>${nav()}`;
