@@ -1,5 +1,5 @@
-const CACHE = 'aglaia-v10';
-const ASSETS = ['./', './index.html', './styles.css', './app.js?v=10', './manifest.webmanifest'];
+const CACHE = 'aglaia-v11';
+const ASSETS = ['./', './index.html', './styles.css', './app.js?v=11', './manifest.webmanifest'];
 
 self.addEventListener('install', event => {
   self.skipWaiting();
