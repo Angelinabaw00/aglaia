@@ -13,8 +13,8 @@ const neutralColors = new Set(['Noir', 'Blanc', 'Écru', 'Beige', 'Gris', 'Marro
 
 const state = {
   ready: false, session: null, page: 'today', previous: 'today', selectedId: null, editId: null,
-  clothes: [], outfits: [], plans: [], search: '', category: 'Tous', season: 'Toutes',
-  favoritesOnly: false, sort: 'Récent', suggestion: [], selectedDate: new Date().toISOString().slice(0, 10), notice: ''
+  clothes: [], outfits: [], plans: [], search: '', category: 'Tous', color: 'Toutes', season: 'Toutes',
+  favoritesOnly: false, saleOnly: false, sort: 'Récent', suggestion: [], selectedDate: new Date().toISOString().slice(0, 10), notice: ''
 };
 
 const app = document.getElementById('app');
@@ -95,11 +95,20 @@ function stat(number, label) { return `<div class="card mini-stat"><strong>${num
 function empty(icon, title, text, action, page) { return `<div class="empty"><div class="empty-art">${icon}</div><h2>${title}</h2><p>${text}</p>${action ? `<button class="button" data-go="${page}">${action}</button>` : ''}</div>`; }
 
 function dressingPage() {
-  const term = state.search.toLowerCase();
-  const visible = state.clothes.filter(item => (!term || `${item.name} ${item.brand || ''} ${item.color}`.toLowerCase().includes(term)) && (state.category === 'Tous' || item.category === state.category) && (state.season === 'Toutes' || item.season === state.season) && (!state.favoritesOnly || item.is_favorite)).sort((a, b) => state.sort === 'Nom' ? a.name.localeCompare(b.name) : state.sort === 'Moins portés' ? (a.times_worn || 0) - (b.times_worn || 0) : b.created_at.localeCompare(a.created_at));
-  return `<main class="page">${brand()}<div class="title-action"><div><h1>Mon dressing</h1><p class="subtitle">${state.clothes.length} vêtement${state.clothes.length !== 1 ? 's' : ''} synchronisé${state.clothes.length !== 1 ? 's' : ''}</p></div><button class="round-add" data-go="add">＋</button></div><div class="search"><input id="search" value="${esc(state.search)}" placeholder="Rechercher un vêtement"></div><div class="filters">${categories.map(item => chip(item, state.category === item, item, 'category'))}</div><div class="filters">${['Toutes', ...seasons].map(item => chip(item, state.season === item, item, 'season'))}</div><div class="filters compact">${chip('♡ Favoris', state.favoritesOnly, 'toggle', 'favorites')}${['Récent','Nom','Moins portés'].map(item => chip(item, state.sort === item, item, 'sort'))}</div>${visible.length ? `<div class="clothes-grid">${visible.map(clothingCard).join('')}</div>` : empty('👗', state.clothes.length ? 'Aucun résultat' : 'Ton dressing est vide', state.clothes.length ? 'Essaie un autre filtre.' : 'Ajoute ta première pièce.', state.clothes.length ? '' : 'Ajouter un vêtement', 'add')}</main>${nav()}`;
+  const terms = state.search.toLowerCase().split(/\s+/).filter(Boolean);
+  const visible = state.clothes.filter(item => {
+    const searchable = `${item.name} ${item.brand || ''} ${item.category} ${item.subcategory || ''} ${item.color} ${item.secondary_color || ''}`.toLowerCase();
+    return terms.every(term => searchable.includes(term))
+      && (state.category === 'Tous' || item.category === state.category)
+      && (state.color === 'Toutes' || item.color === state.color || item.secondary_color === state.color)
+      && (state.season === 'Toutes' || item.season === state.season)
+      && (!state.favoritesOnly || item.is_favorite)
+      && (!state.saleOnly || item.is_for_sale);
+  }).sort((a, b) => state.sort === 'Nom' ? a.name.localeCompare(b.name) : state.sort === 'Couleur' ? `${a.color} ${a.name}`.localeCompare(`${b.color} ${b.name}`) : state.sort === 'Moins portés' ? (a.times_worn || 0) - (b.times_worn || 0) : b.created_at.localeCompare(a.created_at));
+  const saleCount = state.clothes.filter(item => item.is_for_sale).length;
+  return `<main class="page">${brand()}<div class="title-action"><div><h1>Mon dressing</h1><p class="subtitle">${state.clothes.length} vêtement${state.clothes.length !== 1 ? 's' : ''} synchronisé${state.clothes.length !== 1 ? 's' : ''}</p></div><button class="round-add" data-go="add">＋</button></div><div class="wardrobe-tabs">${chip('Tout le dressing', !state.saleOnly, 'all', 'sale-filter')}${chip(`À vendre (${saleCount})`, state.saleOnly, 'sale', 'sale-filter')}</div><div class="search"><input id="search" value="${esc(state.search)}" placeholder="Ex. haut noir, robe rose…"></div><p class="filter-label">Catégorie</p><div class="filters">${categories.map(item => chip(item, state.category === item, item, 'category'))}</div><p class="filter-label">Couleur</p><div class="filters">${['Toutes', ...colors].map(item => chip(item, state.color === item, item, 'color'))}</div><p class="filter-label">Saison et tri</p><div class="filters">${['Toutes', ...seasons].map(item => chip(item, state.season === item, item, 'season'))}</div><div class="filters compact">${chip('♡ Favoris', state.favoritesOnly, 'toggle', 'favorites')}${['Récent','Nom','Couleur','Moins portés'].map(item => chip(item, state.sort === item, item, 'sort'))}</div>${visible.length ? `<p class="results-count">${visible.length} résultat${visible.length !== 1 ? 's' : ''}</p><div class="clothes-grid">${visible.map(clothingCard).join('')}</div>` : empty('👗', state.clothes.length ? 'Aucun résultat' : 'Ton dressing est vide', state.saleOnly ? 'Aucun vêtement n’est marqué à vendre.' : state.clothes.length ? 'Essaie une autre couleur ou un autre filtre.' : 'Ajoute ta première pièce.', state.clothes.length ? '' : 'Ajouter un vêtement', 'add')}</main>${nav()}`;
 }
-function clothingCard(item) { return `<button class="card clothing" data-detail="${item.id}">${garmentImage(item)}<div class="clothing-copy"><div class="card-name"><h3>${esc(item.name)}</h3><span>${item.is_favorite ? '♥' : ''}</span></div><span>${esc(item.category)} · ${esc(item.color)}</span><small>${item.times_worn ? `Porté ${item.times_worn} fois` : 'Jamais porté'}</small></div></button>`; }
+function clothingCard(item) { return `<button class="card clothing" data-detail="${item.id}">${garmentImage(item)}${item.is_for_sale ? '<b class="sale-badge">À vendre</b>' : ''}<div class="clothing-copy"><div class="card-name"><h3>${esc(item.name)}</h3><span>${item.is_favorite ? '♥' : ''}</span></div><span>${esc(item.category)} · ${esc(item.color)}</span><small>${item.times_worn ? `Porté ${item.times_worn} fois` : 'Jamais porté'}</small></div></button>`; }
 
 function addPage() {
   const item = state.editId ? garmentById(state.editId) : null;
@@ -154,7 +163,9 @@ function bind() {
   const image = document.getElementById('image'); if (image) image.onchange = previewPhoto;
   const search = document.getElementById('search'); if (search) search.oninput = event => { state.search = event.target.value; dressingRefreshKeepingFocus(); };
   document.querySelectorAll('[data-category]').forEach(el => el.onclick = () => { state.category = el.dataset.category; render(); });
+  document.querySelectorAll('[data-color]').forEach(el => el.onclick = () => { state.color = el.dataset.color; render(); });
   document.querySelectorAll('[data-season]').forEach(el => el.onclick = () => { state.season = el.dataset.season; render(); });
+  document.querySelectorAll('[data-sale-filter]').forEach(el => el.onclick = () => { state.saleOnly = el.dataset.saleFilter === 'sale'; render(); });
   document.querySelectorAll('[data-favorites]').forEach(el => el.onclick = () => { state.favoritesOnly = !state.favoritesOnly; render(); });
   document.querySelectorAll('[data-sort]').forEach(el => el.onclick = () => { state.sort = el.dataset.sort; render(); });
   document.querySelectorAll('[data-detail]').forEach(el => el.onclick = () => go('detail', { selectedId:el.dataset.detail }));
